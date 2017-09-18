@@ -20,7 +20,8 @@ static NSString *kPayloadDirName                    = @"Payload";
 static NSString *kProductsDirName                   = @"Products";
 static NSString *kInfoPlistFilename                 = @"Info.plist";
 static NSString *kiTunesMetadataFileName            = @"iTunesMetadata";
-static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionString";
+static NSString *kBundleVersionShortPlistApp        = @"CFBundleShortVersionString";
+static NSString *kBuildVersionPlistApp              = @"CFBundleVersion";
 
 @implementation iReSignAppDelegate
 
@@ -176,6 +177,10 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
                 [self doBundleVersionShortChange:bundleVersionShortField.stringValue];
             }
             
+            if (changeBuildVersionCheckbox.state == NSOnState) {
+                [self doBuildVersionChange:buildVersionField.stringValue];
+            }
+            
             if ([[provisioningPathField stringValue] isEqualTo:@""]) {
                 [self doCodeSigning];
             } else {
@@ -205,6 +210,10 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
             [self doBundleVersionShortChange:bundleVersionShortField.stringValue];
         }
         
+        if (changeBuildVersionCheckbox.state == NSOnState) {
+            [self doBuildVersionChange:buildVersionField.stringValue];
+        }
+        
         if ([[provisioningPathField stringValue] isEqualTo:@""]) {
             [self doCodeSigning];
         } else {
@@ -231,6 +240,15 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
     return success;
 }
 
+- (BOOL)doBuildVersionChange:(NSString *)newBuildVersion {
+    BOOL success = YES;
+    
+    success &= [self doAppBuildVersionChange:newBuildVersion];
+    success &= [self doITunesMetadataBuildVersionChange:newBuildVersion];
+    
+    return success;
+}
+
 
 - (BOOL)doITunesMetadataBundleIDChange:(NSString *)newBundleID {
     NSArray *dirContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:workingPath error:nil];
@@ -247,6 +265,7 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
     
 }
 
+
 - (BOOL)doITunesMetadataBundleVersionShortChange:(NSString *)newBundleVersionShort {
     NSArray *dirContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:workingPath error:nil];
     NSString *infoPlistPath = nil;
@@ -258,7 +277,22 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
         }
     }
     
-    return [self changeBundleVersionShortForFile:newBundleVersionShort bundleVersionShortKey:newBundleVersionShort newBundleVersionShort:newBundleVersionShort plistOutOptions:NSPropertyListXMLFormat_v1_0];
+    return [self changeBundleVersionShortForFile:newBundleVersionShort bundleVersionShortKey:kBundleVersionShortPlistApp newBundleVersionShort:newBundleVersionShort plistOutOptions:NSPropertyListXMLFormat_v1_0];
+    
+}
+
+- (BOOL)doITunesMetadataBuildVersionChange:(NSString *)newBuildVersion {
+    NSArray *dirContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:workingPath error:nil];
+    NSString *infoPlistPath = nil;
+    
+    for (NSString *file in dirContents) {
+        if ([[[file pathExtension] lowercaseString] isEqualToString:@"plist"]) {
+            infoPlistPath = [workingPath stringByAppendingPathComponent:file];
+            break;
+        }
+    }
+    
+    return [self changeBuildVersionForFile:newBuildVersion buildVersionKey:kBuildVersionPlistApp newBuildVersion:newBuildVersion plistOutOptions:NSPropertyListXMLFormat_v1_0];
     
 }
 
@@ -291,7 +325,23 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
         }
     }
     
-    return [self changeBundleVersionShortForFile:infoPlistPath bundleVersionShortKey:kKeyBundleVersionShortPlistApp newBundleVersionShort:newBundleVersionShort plistOutOptions:NSPropertyListBinaryFormat_v1_0];
+    return [self changeBundleVersionShortForFile:infoPlistPath bundleVersionShortKey:kBundleVersionShortPlistApp newBundleVersionShort:newBundleVersionShort plistOutOptions:NSPropertyListBinaryFormat_v1_0];
+}
+
+- (BOOL)doAppBuildVersionChange:(NSString *)newBuildVersion {
+    NSArray *dirContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:[workingPath stringByAppendingPathComponent:kPayloadDirName] error:nil];
+    NSString *infoPlistPath = nil;
+    
+    for (NSString *file in dirContents) {
+        if ([[[file pathExtension] lowercaseString] isEqualToString:@"app"]) {
+            infoPlistPath = [[[workingPath stringByAppendingPathComponent:kPayloadDirName]
+                              stringByAppendingPathComponent:file]
+                             stringByAppendingPathComponent:kInfoPlistFilename];
+            break;
+        }
+    }
+    
+    return [self changeBuildVersionForFile:infoPlistPath buildVersionKey:kBuildVersionPlistApp newBuildVersion:newBuildVersion plistOutOptions:NSPropertyListBinaryFormat_v1_0];
 }
 
 - (BOOL)changeBundleIDForFile:(NSString *)filePath bundleIDKey:(NSString *)bundleIDKey newBundleID:(NSString *)newBundleID plistOutOptions:(NSPropertyListWriteOptions)options {
@@ -318,6 +368,23 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
     if ([[NSFileManager defaultManager] fileExistsAtPath:filePath]) {
         plist = [[NSMutableDictionary alloc] initWithContentsOfFile:filePath];
         [plist setObject:newBundleVersionShort forKey:bundleVersionShortKey];
+        
+        NSData *xmlData = [NSPropertyListSerialization dataWithPropertyList:plist format:options options:kCFPropertyListImmutable error:nil];
+        
+        return [xmlData writeToFile:filePath atomically:YES];
+        
+    }
+    
+    return NO;
+}
+
+- (BOOL)changeBuildVersionForFile:(NSString *)filePath buildVersionKey:(NSString *)buildVersionKey newBuildVersion:(NSString *)newBuildVersion plistOutOptions:(NSPropertyListWriteOptions)options {
+    
+    NSMutableDictionary *plist = nil;
+    
+    if ([[NSFileManager defaultManager] fileExistsAtPath:filePath]) {
+        plist = [[NSMutableDictionary alloc] initWithContentsOfFile:filePath];
+        [plist setObject:newBuildVersion forKey:buildVersionKey];
         
         NSData *xmlData = [NSPropertyListSerialization dataWithPropertyList:plist format:options options:kCFPropertyListImmutable error:nil];
         
@@ -781,6 +848,20 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
     bundleVersionShortField.enabled = changeBundleVersionShortCheckbox.state == NSOnState;
 }
 
+- (IBAction)changeBuildVersionPressed:(id)sender {
+    
+    if (sender != changeBuildVersionCheckbox) {
+        return;
+    }
+    
+    buildVersionField.enabled = changeBuildVersionCheckbox.state == NSOnState;
+    
+    if(![bundleVersionShortField.stringValue  isEqual: @""])
+    {
+        buildVersionField.stringValue = bundleVersionShortField.stringValue;
+    }
+}
+
 - (void)disableControls {
     [pathField setEnabled:FALSE];
     [entitlementField setEnabled:FALSE];
@@ -790,8 +871,10 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
     [provisioningPathField setEnabled:NO];
     [changeBundleIDCheckbox setEnabled:NO];
     [changeBundleVersionShortCheckbox setEnabled:NO];
+    [changeBuildVersionCheckbox setEnabled:NO];
     [bundleIDField setEnabled:NO];
     [bundleVersionShortField setEnabled:NO];
+    [buildVersionField setEnabled:NO];
     [certComboBox setEnabled:NO];
     
     [flurry startAnimation:self];
@@ -807,8 +890,10 @@ static NSString *kKeyBundleVersionShortPlistApp     = @"CFBundleShortVersionStri
     [provisioningPathField setEnabled:YES];
     [changeBundleIDCheckbox setEnabled:YES];
     [changeBundleVersionShortCheckbox setEnabled:YES];
+    [changeBuildVersionCheckbox setEnabled:YES];
     [bundleIDField setEnabled:changeBundleIDCheckbox.state == NSOnState];
     [bundleVersionShortField setEnabled:changeBundleVersionShortCheckbox.state == NSOnState];
+    [buildVersionField setEnabled:changeBuildVersionCheckbox.state == NSOnState];
     [certComboBox setEnabled:YES];
     
     [flurry stopAnimation:self];

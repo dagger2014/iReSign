@@ -43,7 +43,8 @@
     IBOutlet IRTextFieldDrag *entitlementField;
     IBOutlet IRTextFieldDrag *bundleIDField;
     IBOutlet IRTextFieldDrag *bundleVersionShortField;
-
+    IBOutlet IRTextFieldDrag *buildVersionField;
+    
     IBOutlet NSButton    *browseButton;
     IBOutlet NSButton    *provisioningBrowseButton;
     IBOutlet NSButton *entitlementBrowseButton;
@@ -52,6 +53,7 @@
     IBOutlet NSProgressIndicator *flurry;
     IBOutlet NSButton *changeBundleIDCheckbox;
     IBOutlet NSButton *changeBundleVersionShortCheckbox;
+    IBOutlet NSButton *changeBuildVersionCheckbox;
     
     IBOutlet NSComboBox *certComboBox;
     NSMutableArray *certComboBoxItems;
@@ -70,6 +72,7 @@
 - (IBAction)entitlementBrowse:(id)sender;
 - (IBAction)changeBundleIDPressed:(id)sender;
 - (IBAction)changeBundleVersionShortPressed:(id)sender;
+- (IBAction)changeBuildVersionPressed:(id)sender;
 
 - (void)checkUnzip:(NSTimer *)timer;
 - (void)checkCopy:(NSTimer *)timer;
